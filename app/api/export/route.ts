@@ -23,13 +23,33 @@ const BodySchema = z.object({
   uuidCode: UUID_ENUM.optional(),
 });
 
-// helpers
+/* ---------- UI → Excel labels override (tes noms UI) ---------- */
+const UI_LABELS: Partial<Record<ColumnKey, string>> = {
+  reference_id: "Slate ID",
+  gla: "GLA",
+  tenancy_date_end_display: "End Date",
+  walt: "WALT",
+  total_current_rent: "Total Rent",
+  location_name: "State",
+  psm: "psm",
+  options_summary: "Options",
+  street_nr: "Street",
+  tenancy_name: "Tenant",
+};
+const DISPLAY_LABELS: Record<ColumnKey, string> = Object.fromEntries(
+  (Object.keys(COLUMN_LABELS) as ColumnKey[]).map((k) => [k, UI_LABELS[k] ?? COLUMN_LABELS[k]])
+) as Record<ColumnKey, string>;
+
+/* ---------- helpers ---------- */
 function parseOdooDate(s: string | null | undefined): Date | null {
   if (!s) return null;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
-function computeWALT(dateStartStr: string | null | undefined, dateEndStr: string | null | undefined): number | "M2M" {
+function computeWALT(
+  dateStartStr: string | null | undefined,
+  dateEndStr: string | null | undefined
+): number | "M2M" {
   const start = parseOdooDate(dateStartStr);
   const end = parseOdooDate(dateEndStr);
   if (start && !end) return "M2M"; // start sans end => M2M
@@ -43,10 +63,40 @@ function toExcelDate(val: string | null | undefined): Date | null {
   return parseOdooDate(val);
 }
 
-// formats xlsx
+/* ---------- formats xlsx ---------- */
 const fmtIntDash = '#,##0;-#,##0;"-"';
 const fmt2Dash = '#,##0.00;-#,##0.00;"-"';
 const fmtDate = "dd/mm/yyyy";
+
+/* ---------- Types littéraux pour Asset Tape ---------- */
+type AssetTapeCol =
+  | "Slate ID"
+  | "City"
+  | "Street"
+  | "ZIP"
+  | "State"
+  | "Entity"
+  | "Construction / Modernization"
+  | "Plot area"
+  | "Parking Slots"
+  | "Total GLA"
+  | "WALT"
+  | "Base rent pm";
+
+interface ATRow {
+  "Slate ID": string | null;
+  "City": string | null;
+  "Street": string | null;
+  "ZIP": string | null;
+  "State": string | null;
+  "Entity": string | null;
+  "Construction / Modernization": string;
+  "Plot area": number;
+  "Parking Slots": number;
+  "Total GLA": number;
+  "WALT": number;           // 0 affiché “-” via format
+  "Base rent pm": number;
+}
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
@@ -103,20 +153,23 @@ export async function POST(req: Request) {
   if (companyId !== null) propDomain.push(["company_id", "=", companyId]);
   if (uuidCode) propDomain.push(["sales_person_id", "=", UUID_MAP[uuidCode]]);
 
-  // On lit aussi les champs Asset Tape
-const propFields = [
-  "id","reference_id","main_property_id","location_id","city","street","nr","zip",
-  "entity_id","construction_year","last_modernization","plot_area","no_of_parking"
-];
+  // Champs incluant Asset Tape
+  const propFields = [
+    "id","reference_id","main_property_id","location_id","city","street","nr","zip",
+    "entity_id","construction_year","last_modernization","plot_area","no_of_parking",
+  ];
   const properties = await odoo.searchRead<PropertyRecord>("property.property", propDomain, propFields);
   if (properties.length === 0) {
     return NextResponse.json({ error: "Aucun asset trouvé avec ces filtres" }, { status: 404 });
   }
 
-  const mainPropIds = Array.from(new Set(
-    properties.map(p => m2oId(p.main_property_id) ?? p.id)
-             .filter((v): v is number => typeof v === "number")
-  ));
+  const mainPropIds = Array.from(
+    new Set(
+      properties
+        .map((p) => m2oId(p.main_property_id) ?? p.id)
+        .filter((v): v is number => typeof v === "number")
+    )
+  );
 
   // Tenancies
   const tenancyFields: string[] = [
@@ -126,7 +179,9 @@ const propFields = [
     "current_ancillary_costs",
   ];
   const tenancies = await odoo.searchRead<TenancyRecord>(
-    "property.tenancy", [["main_property_id","in",mainPropIds]], tenancyFields
+    "property.tenancy",
+    [["main_property_id","in",mainPropIds]],
+    tenancyFields
   );
 
   // Options: 'property.tenancy.optioning' (tenancy_id, duration_years)
@@ -157,7 +212,7 @@ const propFields = [
     if (typeof mid === "number" && !mainById.has(mid)) mainById.set(mid, p);
   }
 
-  // ====== Rent Roll rows (par tenancy) ======
+  /* ====== Rent Roll rows (par tenancy) ====== */
   type Cell = string | number | Date | null;
   type RRRow = Record<string, Cell>;
   const rrRows: RRRow[] = [];
@@ -193,46 +248,34 @@ const propFields = [
 
       const line: RRRow = {};
       for (const col of rrColumns) {
+        const label = DISPLAY_LABELS[col]; // écrire avec label UI
         switch (col) {
-          case "reference_id": line[COLUMN_LABELS[col]] = assetRef; break;
-          case "city": line[COLUMN_LABELS[col]] = city; break;
-          case "street_nr": line[COLUMN_LABELS[col]] = streetNr; break;
-          case "zip": line[COLUMN_LABELS[col]] = zip; break;
-          case "location_name": line[COLUMN_LABELS[col]] = locationName; break;
-          case "tenancy_name": line[COLUMN_LABELS[col]] = t.name ?? null; break;
-          case "gla": line[COLUMN_LABELS[col]] = glaNum; break;
-          case "tenancy_date_start": line[COLUMN_LABELS[col]] = dateStart; break;
-          case "tenancy_date_end_display": line[COLUMN_LABELS[col]] = dateEndDisp; break;
-          case "walt": line[COLUMN_LABELS[col]] = waltVal; break;
-          case "total_current_rent": line[COLUMN_LABELS[col]] = totalRentNum; break;
-          case "psm": line[COLUMN_LABELS[col]] = psmMonthly; break;
-          case "options_summary": line[COLUMN_LABELS[col]] = optionsSummary; break;
-          case "current_rent": line[COLUMN_LABELS[col]] = currentRent; break;
-          case "current_ancillary_costs": line[COLUMN_LABELS[col]] = ancillaryNum; break;
+          case "reference_id": line[label] = assetRef; break;
+          case "city": line[label] = city; break;
+          case "street_nr": line[label] = streetNr; break;
+          case "zip": line[label] = zip; break;
+          case "location_name": line[label] = locationName; break;
+          case "tenancy_name": line[label] = t.name ?? null; break;
+          case "gla": line[label] = glaNum; break;                               // 0 numérique
+          case "tenancy_date_start": line[label] = dateStart; break;             // Date | null
+          case "tenancy_date_end_display": line[label] = dateEndDisp; break;     // Date | null
+          case "walt": line[label] = waltVal; break;                             // number | "M2M"
+          case "total_current_rent": line[label] = totalRentNum; break;          // 0 numérique
+          case "psm": line[label] = psmMonthly; break;                           // 0 numérique
+          case "options_summary": line[label] = optionsSummary; break;           // "" si vide
+          case "current_rent": line[label] = currentRent; break;
+          case "current_ancillary_costs": line[label] = ancillaryNum; break;
         }
       }
       rrRows.push(line);
     }
 
-    // tri par Asset Ref
-    const lbl = COLUMN_LABELS["reference_id"];
+    // tri par "Slate ID" (display label de reference_id)
+    const lbl = DISPLAY_LABELS["reference_id"];
     rrRows.sort((a, b) => String(a[lbl] ?? "").localeCompare(String(b[lbl] ?? ""), "fr"));
   }
 
-  // ====== Asset Tape rows (par main property) ======
-  type ATRow = {
-    "Asset Ref": string | null;
-    "City": string | null;
-    "Street + Nr": string | null;
-    "ZIP": string | null;
-    "Entity": string | null;
-    "Construction / Modernization": string;
-    "Plot area": number;
-    "No. of parking": number;
-    "Rentable area": number;
-    "WALT (yrs)": number;         // 0 affiché en "-"
-    "Base rent pm": number;
-  };
+  /* ====== Asset Tape rows (par main property) ====== */
   const atRows: ATRow[] = [];
 
   if (exportType !== "rent_roll") {
@@ -258,14 +301,13 @@ const propFields = [
       const streetNr = [street ?? "", nr ?? ""].join(" ").trim() || null;
       const zip = main.zip ?? null;
       const entityName = m2oName(main.entity_id as any) ?? null;
+      const stateName  = m2oName(main.location_id as any) ?? null;
 
       const cons = main.construction_year;
       const mod = main.last_modernization;
       const consStr = cons ? String(cons) : "";
       const modStr = mod ? String(mod) : "";
-      const consMod =
-        consStr && modStr ? `${consStr} / ${modStr}` :
-        consStr || modStr;
+      const consMod = consStr && modStr ? `${consStr} / ${modStr}` : consStr || modStr;
 
       const plotArea = typeof main.plot_area === "number" ? main.plot_area : 0;
       const nParking = typeof main.no_of_parking === "number" ? main.no_of_parking : 0;
@@ -291,28 +333,28 @@ const propFields = [
       const waltAsset = weightSum > 0 ? Math.round((waltWeightedSum / weightSum) * 100) / 100 : 0;
 
       atRows.push({
-        "Asset Ref": assetRef,
+        "Slate ID": assetRef,
         "City": city,
-        "Street + Nr": streetNr,
+        "Street": streetNr,
         "ZIP": zip,
+        "State": stateName,
         "Entity": entityName,
         "Construction / Modernization": consMod || "",
         "Plot area": plotArea,
-        "No. of parking": nParking,
-        "Rentable area": rentableArea,
-        "WALT (yrs)": waltAsset,
+        "Parking Slots": nParking,
+        "Total GLA": rentableArea,
+        "WALT": waltAsset,
         "Base rent pm": baseRentPm,
       });
     }
 
-    // tri par Asset Ref
-    atRows.sort((a, b) => String(a["Asset Ref"] ?? "").localeCompare(String(b["Asset Ref"] ?? ""), "fr"));
+    // tri par Slate ID (nouveau libellé)
+    atRows.sort((a, b) => String(a["Slate ID"] ?? "").localeCompare(String(b["Slate ID"] ?? ""), "fr"));
   }
 
-  // ====== Construire Excel ======
+  /* ====== Construire Excel ====== */
   const wb = XLSX.utils.book_new();
 
-  // utilitaire: ajoute une feuille à partir d'un AOA à B2 + formats + autofilter
   function addSheetWithFormats(
     name: string,
     header: string[],
@@ -320,7 +362,7 @@ const propFields = [
     numberFormats: Record<string, string>,
     dateColumns: Set<string>
   ) {
-    const data = rows.map((r) => header.map((h) => (r[h] ?? "")));
+    const data = rows.map((r) => header.map((h) => r[h] ?? ""));
     const aoa = [header, ...data];
     const ws = XLSX.utils.aoa_to_sheet([]);
     XLSX.utils.sheet_add_aoa(ws, aoa, { origin: "B2" });
@@ -338,12 +380,14 @@ const propFields = [
           const cell = ws[addr];
           if (!cell) continue;
           if (cell.v instanceof Date) {
+
             cell.t = "d";
             cell.z = fmtDate;
           } else if (typeof cell.v === "string" && cell.v) {
             const d = new Date(cell.v);
             if (!Number.isNaN(d.getTime())) {
               cell.v = d;
+
               cell.t = "d";
               cell.z = fmtDate;
             }
@@ -364,46 +408,48 @@ const propFields = [
 
     // AutoFilter
     const end = { r: start.r + aoa.length - 1, c: start.c + header.length - 1 };
+
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: start, e: end }) };
 
     XLSX.utils.book_append_sheet(wb, ws, name);
   }
 
-  // Rent Roll sheet
+  // Rent Roll sheet (labels UI)
   if (exportType !== "asset_tape") {
-    const rrHeader = rrColumns.map((c) => COLUMN_LABELS[c]);
+    const rrHeader = rrColumns.map((c) => DISPLAY_LABELS[c]);
     addSheetWithFormats(
       "Rent Roll",
       rrHeader,
       rrRows as any[],
       {
-        [COLUMN_LABELS["gla"]]: fmtIntDash,
-        [COLUMN_LABELS["current_rent"]]: fmtIntDash,
-        [COLUMN_LABELS["current_ancillary_costs"]]: fmtIntDash,
-        [COLUMN_LABELS["total_current_rent"]]: fmtIntDash,
-        [COLUMN_LABELS["psm"]]: fmt2Dash,
-        [COLUMN_LABELS["walt"]]: fmt2Dash,
+        [DISPLAY_LABELS["gla"]]: fmtIntDash,
+        [DISPLAY_LABELS["current_rent"]]: fmtIntDash,
+        [DISPLAY_LABELS["current_ancillary_costs"]]: fmtIntDash,
+        [DISPLAY_LABELS["total_current_rent"]]: fmtIntDash, // "Total Rent"
+        [DISPLAY_LABELS["psm"]]: fmt2Dash,
+        [DISPLAY_LABELS["walt"]]: fmt2Dash, // "WALT"
       },
       new Set<string>([
-        COLUMN_LABELS["tenancy_date_start"],
-        COLUMN_LABELS["tenancy_date_end_display"],
+        DISPLAY_LABELS["tenancy_date_start"],
+        DISPLAY_LABELS["tenancy_date_end_display"], // "End Date"
       ])
     );
   }
 
-  // Asset Tape sheet
+  // Asset Tape sheet (labels renommés)
   if (exportType !== "rent_roll") {
-    const atHeader = [
-      "Asset Ref",
+    const atHeader: AssetTapeCol[] = [
+      "Slate ID",
       "City",
-      "Street + Nr",
+      "Street",
       "ZIP",
+      "State",
       "Entity",
       "Construction / Modernization",
       "Plot area",
-      "No. of parking",
-      "Rentable area",
-      "WALT (yrs)",
+      "Parking Slots",
+      "Total GLA",
+      "WALT",
       "Base rent pm",
     ];
     addSheetWithFormats(
@@ -412,12 +458,12 @@ const propFields = [
       atRows as any[],
       {
         "Plot area": fmtIntDash,
-        "No. of parking": fmtIntDash,
-        "Rentable area": fmtIntDash,
-        "WALT (yrs)": fmt2Dash,
+        "Parking Slots": fmtIntDash,
+        "Total GLA": fmtIntDash,
+        "WALT": fmt2Dash,
         "Base rent pm": fmtIntDash,
       },
-      new Set<string>() // pas de colonnes date dans AT
+      new Set<string>() // pas de dates ici
     );
   }
 

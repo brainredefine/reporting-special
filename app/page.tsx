@@ -56,6 +56,18 @@ export default function Page() {
     () => new Set(Object.keys(COLUMN_LABELS) as Array<ColumnKey>),
     []
   );
+  const UI_LABELS: Partial<Record<ColumnKey, string>> = {
+  reference_id: "Slate ID",
+  gla: "GLA",
+  tenancy_date_end_display: "End Date",
+  walt: "WALT",
+  total_current_rent: "Total Rent",
+  location_name: "State",
+  psm: "psm",
+  options_summary: "Options",
+  street_nr: "Street",
+  tenancy_name: "Tenant",
+};
 
   function toggle(col: ColumnKey) {
     setSelected((prev) =>
@@ -133,10 +145,10 @@ export default function Page() {
       <div className="relative z-10 mx-auto max-w-4xl px-6 py-16">
         <header className="text-center">
           <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-            Export Odoo → Excel
+            Asset Tape & Rent Roll Generator
           </h1>
           <p className="mt-3 text-zinc-400">
-            Choisis tes filtres (fonds/uuid/asset) et le type d’export.
+            Choose your filters (optional). Can filter by fund, by Asset Manager, and by asset.
           </p>
         </header>
 
@@ -176,7 +188,7 @@ export default function Page() {
           {/* Filtres */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-zinc-200 mb-2">Fonds (company)</label>
+              <label className="block text-sm text-zinc-200 mb-2">Fund</label>
               <select
                 value={fundName}
                 onChange={(e) => setFundName(e.target.value)}
@@ -189,7 +201,7 @@ export default function Page() {
             </div>
 
             <div>
-              <label className="block text-sm text-zinc-200 mb-2">UUID</label>
+              <label className="block text-sm text-zinc-200 mb-2">Asset Manager</label>
               <select
                 value={uuidCode}
                 onChange={(e) => setUuidCode(e.target.value)}
@@ -199,14 +211,14 @@ export default function Page() {
                   <option key={o.label} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <p className="text-xs text-zinc-400 mt-1">Mapping: BKO→8, CFR→12, FKE→7, MSC→9</p>
+              <p className="text-xs text-zinc-400 mt-1"></p>
             </div>
           </div>
 
           {/* Assets (optionnel) */}
           <div>
             <label className="block text-sm text-zinc-200 mb-2">
-              Assets reference_id (optionnels — séparés par virgule, espace ou retour)
+              Slate ID (optional — can be separated by a comma, a space, or by going to the line)
             </label>
             <textarea
               value={refsInput}
@@ -216,7 +228,7 @@ export default function Page() {
               placeholder="AA1, AA2, AB10 …"
             />
             <p className="text-xs text-zinc-400 mt-1">
-              Si vide : on utilisera le filtre Fonds / UUID, sinon tous les assets.
+              If empty, then use the filters Asset Manager / Fund, or all assets.
             </p>
           </div>
 
@@ -230,14 +242,14 @@ export default function Page() {
                     onClick={() => toggleAll(true)}
                     className="rounded border border-white/15 bg-white/10 px-2 py-1 text-xs hover:border-white/25"
                   >
-                    Tout cocher
+                    Select all
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleAll(false)}
                     className="rounded border border-white/15 bg-white/10 px-2 py-1 text-xs hover:border-white/25"
                   >
-                    Tout décocher
+                    Unselect all
                   </button>
                 </div>
 
@@ -259,7 +271,7 @@ export default function Page() {
                       checked={selected.includes(key)}
                       onChange={() => toggle(key)}
                     />
-                    <span className="text-sm">{label}</span>
+                    <span className="text-sm">{UI_LABELS[key] ?? label}</span>
                   </label>
                 ))}
               </div>
@@ -273,7 +285,7 @@ export default function Page() {
               disabled={downloading}
               className="rounded-xl bg-white/90 text-black px-4 py-3 font-medium shadow-lg hover:bg-white disabled:opacity-50"
             >
-              {downloading ? "Génération…" : "Exporter en Excel"}
+              {downloading ? "Génération…" : "Export in Excel"}
             </button>
           </div>
 

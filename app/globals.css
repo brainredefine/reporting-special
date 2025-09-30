@@ -7,6 +7,14 @@ html, body { min-height: 100%; }
 * { box-sizing: border-box; }
 /* Sélection lisible en dark UI */
 ::selection { background-color: rgba(255,255,255,0.25); color: #fff; }
-/* Pour les champs (textarea/input), on inverse pour éviter le blanc sur blanc */
-input::selection,
-textarea::selection { background-color: #fde68a; color: #111; }
+/* Rendre les options lisibles dans les listes natives (Windows/Chrome/Edge) */
+select option {
+  color: #111 !important;             /* texte foncé */
+  background-color: #fff !important;  /* fond clair */
+}
+
+/* Optionnel: éviter la flèche IE/Edge legacy */
+select::-ms-expand {
+  display: none;
+}
+
