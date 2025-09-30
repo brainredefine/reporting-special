@@ -181,7 +181,7 @@ export default function Page() {
                 checked={exportType === "both"}
                 onChange={() => setExportType("both")}
               />
-              Les deux
+              Both
             </label>
           </div>
 
