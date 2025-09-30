@@ -7,7 +7,7 @@ import type { ColumnKey } from "@/lib/columns";
 type ExportType = "rent_roll" | "asset_tape" | "both";
 
 const FUND_OPTIONS = [
-  { label: "— Aucun —", value: "" },
+  { label: "— None —", value: "" },
   { label: "Fund III (SEREF III)", value: "Fund III (SEREF III)" },
   { label: "Essential", value: "Essential" },
   { label: "Fund IV", value: "Fund IV" },
@@ -16,11 +16,11 @@ const FUND_OPTIONS = [
 ] as const;
 
 const UUID_OPTIONS = [
-  { label: "— Aucun —", value: "" },
-  { label: "BKO", value: "BKO" }, // 8
-  { label: "CFR", value: "CFR" }, // 12
-  { label: "FKE", value: "FKE" }, // 7
-  { label: "MSC", value: "MSC" }, // 9
+  { label: "— None —", value: "" },
+  { label: "Benita", value: "BKO" }, // 8
+  { label: "Christian", value: "CFR" }, // 12
+  { label: "Fabian", value: "FKE" }, // 7
+  { label: "Markus", value: "MSC" }, // 9
 ] as const;
 
 const SLATE_PRESET: ColumnKey[] = [
