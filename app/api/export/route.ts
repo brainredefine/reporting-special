@@ -119,11 +119,11 @@ export async function POST(req: Request) {
     "tenancy_date_start",
     "tenancy_date_end_display",
     "walt",
-    "total_current_rent",
-    "psm",
-    "options_summary",
     "current_rent",
     "current_ancillary_costs",
+    "psm",
+    "total_current_rent",
+    "options_summary",
   ];
 
   const allowed = new Set(Object.keys(COLUMN_LABELS) as Array<ColumnKey>);
