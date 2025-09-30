@@ -225,7 +225,7 @@ export async function POST(req: Request) {
       const glaNum = typeof t.space === "number" ? t.space : 0;
       const currentRent = typeof t.current_rent === "number" ? t.current_rent : 0;
       const totalRentNum = typeof t.total_current_rent === "number" ? t.total_current_rent : 0;
-      const psmMonthly = glaNum > 0 ? (currentRent / 12) / glaNum : 0;
+      const psmMonthly = glaNum > 0 ? totalRentNum / glaNum : 0;
       const dateStart = toExcelDate(t.date_start);
       const dateEndDisp = toExcelDate(t.date_end_display);
       const waltVal = computeWALT(t.date_start, t.date_end_display);
